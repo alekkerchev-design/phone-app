@@ -21,16 +21,18 @@
     table { width: 100%; border-collapse: collapse; }
     th, td { border-bottom: 1px solid #eee; padding: 10px 8px; text-align: left; }
     th { font-size: 12px; color: #444; }
-    .pill { display:inline-block; padding: 3px 8px; border-radius: 999px; font-size: 12px; border: 1px solid #ddd; }
-    .pill.ok { background: #f5fff5; border-color: #bfe6bf; }
-    .pill.warn { background: #fffaf0; border-color: #f0d9a6; }
-    .pill.done { background: #fff5f5; border-color: #f0b6b6; }
     .muted { color: #666; font-size: 12px; }
     .msg { margin-top: 10px; padding: 10px; border-radius: 8px; border: 1px solid #ddd; background: #fafafa; }
     .msg.warn { border-color: #f0d9a6; background: #fffaf0; }
     .msg.err { border-color: #f0b6b6; background: #fff5f5; }
     .right { text-align:right; }
     .busy { opacity: 0.6; pointer-events: none; }
+
+    /* small UX */
+    .header-row { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+    .header-row h2 { margin: 0; }
+    .header-row .actions { display:flex; gap:10px; }
+    .header-row .actions button { width:auto; }
   </style>
 </head>
 
@@ -82,8 +84,18 @@
   </div>
 
   <div class="card" style="margin-top:16px;">
-    <h2>Отчет по пакети</h2>
-    <table>
+    <div class="header-row">
+      <h2>Отчет по пакети</h2>
+      <div class="actions">
+        <button class="secondary" id="exportBtn">Експорт (Excel)</button>
+      </div>
+    </div>
+
+    <div class="muted" style="margin-top:6px;">
+      Експортът включва всички пациенти и всички пакети (активни и изчерпани).
+    </div>
+
+    <table style="margin-top:10px;">
       <thead>
         <tr>
           <th>Пациент</th>
@@ -95,6 +107,9 @@
       <tbody id="packagesTable"></tbody>
     </table>
   </div>
+
+  <!-- ✅ SheetJS (xlsx) за истински .xlsx export -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
 <script>
 (() => {
@@ -108,12 +123,15 @@
     document.body.classList.toggle("busy", v);
   }
 
-  // ✅ НОВО: форматиране на дата (dd.mm.yyyy)
   function formatDate(iso) {
     if (!iso) return "";
     const d = new Date(iso);
     const pad = n => String(n).padStart(2, "0");
     return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()}`;
+  }
+
+  function todayISO() {
+    return new Date().toISOString().slice(0, 10);
   }
 
   async function api(action, payload = {}) {
@@ -125,10 +143,6 @@
     const json = await res.json();
     if (!json.ok) throw new Error(json.error || "API error");
     return json.data;
-  }
-
-  function today() {
-    return new Date().toISOString().slice(0,10);
   }
 
   const el = id => document.getElementById(id);
@@ -145,11 +159,12 @@
   }
 
   function render() {
+    // Populate selects (only non-archived patients)
     const selects = [el("patientForPackage"), el("patientForConsult")];
     selects.forEach(s => {
       s.innerHTML = "";
       state.patients.forEach(p => {
-        if (p.archived) return;
+        if (String(p.archived).toLowerCase() === "true") return;
         const o = document.createElement("option");
         o.value = p.patientId;
         o.textContent = p.firstName + " " + p.lastName;
@@ -157,17 +172,18 @@
       });
     });
 
+    // Packages table
     const tbody = el("packagesTable");
     tbody.innerHTML = "";
 
     state.packages.forEach(pkg => {
       const p = state.patients.find(x => x.patientId === pkg.patientId);
       const used = state.consultations.filter(c => c.packageId === pkg.packageId).length;
-      const left = pkg.size - used;
+      const left = Number(pkg.size) - used;
 
       const tr = document.createElement("tr");
       tr.innerHTML = `
-        <td>${p ? p.firstName + " " + p.lastName : "?"}</td>
+        <td>${p ? (p.firstName + " " + p.lastName) : "?"}</td>
         <td>${formatDate(pkg.purchaseDate)}</td>
         <td>${used} / ${left}</td>
         <td class="right">
@@ -178,8 +194,76 @@
     });
   }
 
-  el("packageDate").value = today();
-  el("consultDate").value = today();
+  // ✅ Excel Export
+  function exportToExcel() {
+    if (!window.XLSX) {
+      alert("Липсва библиотека за Excel export (XLSX).");
+      return;
+    }
+
+    // За бърз lookup
+    const patientMap = new Map(state.patients.map(p => [p.patientId, p]));
+    const consultsByPkg = new Map();
+    for (const c of state.consultations) {
+      const arr = consultsByPkg.get(c.packageId) || [];
+      arr.push(c);
+      consultsByPkg.set(c.packageId, arr);
+    }
+
+    // Сортираме консултациите по дата за по-приятен експорт
+    for (const [pkgId, arr] of consultsByPkg.entries()) {
+      arr.sort((a,b) => String(a.date).localeCompare(String(b.date)));
+      consultsByPkg.set(pkgId, arr);
+    }
+
+    // Генерираме редове:
+    // - 1 ред за всяка консултация (с попълнена дата)
+    // - ако пакетът няма консултации → 1 ред с празна дата на консултация
+    const rows = [];
+
+    // Сортираме пакетите по дата на покупка (по желание)
+    const packagesSorted = state.packages.slice().sort((a,b) => String(a.purchaseDate).localeCompare(String(b.purchaseDate)));
+
+    for (const pkg of packagesSorted) {
+      const pat = patientMap.get(pkg.patientId);
+      const patientName = pat ? `${pat.firstName} ${pat.lastName}` : "(липсващ пациент)";
+
+      const consults = consultsByPkg.get(pkg.packageId) || [];
+      const done = consults.length;
+      const left = Math.max(0, Number(pkg.size) - done);
+
+      if (consults.length === 0) {
+        rows.push({
+          "Пациент": patientName,
+          "Дата покупка (пакет)": formatDate(pkg.purchaseDate),
+          "Дата консултация": "",
+          "Проведени (в пакета)": done,
+          "Оставащи (в пакета)": left
+        });
+      } else {
+        for (const c of consults) {
+          rows.push({
+            "Пациент": patientName,
+            "Дата покупка (пакет)": formatDate(pkg.purchaseDate),
+            "Дата консултация": formatDate(c.date),
+            "Проведени (в пакета)": done,
+            "Оставащи (в пакета)": left
+          });
+        }
+      }
+    }
+
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Export");
+
+    const filename = `phone-consultations-${todayISO()}.xlsx`;
+    XLSX.writeFile(wb, filename);
+  }
+
+  // UI init
+  el("packageDate").value = todayISO();
+  el("consultDate").value = todayISO();
 
   el("addPatientBtn").onclick = async () => {
     try {
@@ -212,6 +296,33 @@
       });
       refresh();
     } catch (e) { alert(e.message); }
+  };
+
+  // Delete package button (UI only — ако имаш delete API endpoint)
+  el("packagesTable").addEventListener("click", async (e) => {
+    const btn = e.target.closest("button");
+    if (!btn) return;
+    const pkgId = btn.dataset.id;
+    if (!pkgId) return;
+
+    const ok = confirm("Сигурен ли си, че искаш да изтриеш този пакет? Това ще изтрие и консултациите към него.");
+    if (!ok) return;
+
+    try {
+      await api("deletePackage", { packageId: pkgId });
+      refresh();
+    } catch (err) {
+      alert(err.message);
+    }
+  });
+
+  // Export button
+  el("exportBtn").onclick = () => {
+    try {
+      exportToExcel();
+    } catch (e) {
+      alert(e.message);
+    }
   };
 
   refresh();
