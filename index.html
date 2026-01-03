@@ -782,12 +782,11 @@
 
       const tr = document.createElement("tr");
       tr.innerHTML = `
-        <td>
-          <div style="display:flex;flex-direction:column;gap:4px;">
-            <div style="font-weight:600;">${escapeHtml(p.firstName + " " + p.lastName)}</div>
-            <div class="mono" style="font-size:12px;color:var(--muted);">${escapeHtml(pkg.packageId)}</div>
-          </div>
-        </td>
+       <td>
+  <div style="display:flex;flex-direction:column;gap:4px;">
+    <div style="font-weight:600;">${escapeHtml(p.firstName + " " + p.lastName)}</div>
+  </div>
+</td>
         <td>${escapeHtml(formatDate(pkg.purchaseDate))}</td>
         <td>${statusBadge}</td>
         <td>
@@ -1108,3 +1107,4 @@
 </script>
 </body>
 </html>
+
