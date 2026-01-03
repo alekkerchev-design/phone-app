@@ -28,7 +28,6 @@
     .right { text-align:right; }
     .busy { opacity: 0.6; pointer-events: none; }
 
-    /* small UX */
     .header-row { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
     .header-row h2 { margin: 0; }
     .header-row .actions { display:flex; gap:10px; }
@@ -91,10 +90,6 @@
       </div>
     </div>
 
-    <div class="muted" style="margin-top:6px;">
-      Експортът включва всички пациенти и всички пакети (активни и изчерпани).
-    </div>
-
     <table style="margin-top:10px;">
       <thead>
         <tr>
@@ -108,7 +103,7 @@
     </table>
   </div>
 
-  <!-- ✅ SheetJS (xlsx) за истински .xlsx export -->
+  <!-- SheetJS за .xlsx -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
 <script>
@@ -159,7 +154,6 @@
   }
 
   function render() {
-    // Populate selects (only non-archived patients)
     const selects = [el("patientForPackage"), el("patientForConsult")];
     selects.forEach(s => {
       s.innerHTML = "";
@@ -172,7 +166,6 @@
       });
     });
 
-    // Packages table
     const tbody = el("packagesTable");
     tbody.innerHTML = "";
 
@@ -194,15 +187,16 @@
     });
   }
 
-  // ✅ Excel Export
+  // ✅ Excel Export: 1 ред = 1 пакет + списък с дати на консултации
   function exportToExcel() {
     if (!window.XLSX) {
       alert("Липсва библиотека за Excel export (XLSX).");
       return;
     }
 
-    // За бърз lookup
     const patientMap = new Map(state.patients.map(p => [p.patientId, p]));
+
+    // групираме консултациите по пакет
     const consultsByPkg = new Map();
     for (const c of state.consultations) {
       const arr = consultsByPkg.get(c.packageId) || [];
@@ -210,58 +204,45 @@
       consultsByPkg.set(c.packageId, arr);
     }
 
-    // Сортираме консултациите по дата за по-приятен експорт
+    // сортираме датите в пакета
     for (const [pkgId, arr] of consultsByPkg.entries()) {
       arr.sort((a,b) => String(a.date).localeCompare(String(b.date)));
       consultsByPkg.set(pkgId, arr);
     }
 
-    // Генерираме редове:
-    // - 1 ред за всяка консултация (с попълнена дата)
-    // - ако пакетът няма консултации → 1 ред с празна дата на консултация
-    const rows = [];
+    // 1 ред = 1 пакет
+    const rows = state.packages
+      .slice()
+      .sort((a,b) => String(a.purchaseDate).localeCompare(String(b.purchaseDate)))
+      .map(pkg => {
+        const pat = patientMap.get(pkg.patientId);
+        const patientName = pat ? `${pat.firstName} ${pat.lastName}` : "(липсващ пациент)";
 
-    // Сортираме пакетите по дата на покупка (по желание)
-    const packagesSorted = state.packages.slice().sort((a,b) => String(a.purchaseDate).localeCompare(String(b.purchaseDate)));
+        const consults = consultsByPkg.get(pkg.packageId) || [];
+        const done = consults.length;
+        const left = Math.max(0, Number(pkg.size) - done);
 
-    for (const pkg of packagesSorted) {
-      const pat = patientMap.get(pkg.patientId);
-      const patientName = pat ? `${pat.firstName} ${pat.lastName}` : "(липсващ пациент)";
+        const consultDatesList = consults.map(c => formatDate(c.date)).join(", ");
 
-      const consults = consultsByPkg.get(pkg.packageId) || [];
-      const done = consults.length;
-      const left = Math.max(0, Number(pkg.size) - done);
-
-      if (consults.length === 0) {
-        rows.push({
-          "Пациент": patientName,
-          "Дата покупка (пакет)": formatDate(pkg.purchaseDate),
-          "Дата консултация": "",
-          "Проведени (в пакета)": done,
-          "Оставащи (в пакета)": left
-        });
-      } else {
-        for (const c of consults) {
-          rows.push({
-            "Пациент": patientName,
-            "Дата покупка (пакет)": formatDate(pkg.purchaseDate),
-            "Дата консултация": formatDate(c.date),
-            "Проведени (в пакета)": done,
-            "Оставащи (в пакета)": left
-          });
-        }
-      }
-    }
+return {
+  "Пациент": patientName,
+  "Дата покупка (пакет)": formatDate(pkg.purchaseDate),
+  "Дати консултации": consultDatesList,
+  "Проведени (в пакета)": done,
+  "Оставащи (в пакета)": left,
+  "Статус": left > 0 ? "Активен" : "Изчерпан"
+};
+      });
 
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Export");
+    XLSX.utils.book_append_sheet(wb, ws, "Packages");
 
     const filename = `phone-consultations-${todayISO()}.xlsx`;
     XLSX.writeFile(wb, filename);
   }
 
-  // UI init
+  // Init inputs
   el("packageDate").value = todayISO();
   el("consultDate").value = todayISO();
 
@@ -298,7 +279,7 @@
     } catch (e) { alert(e.message); }
   };
 
-  // Delete package button (UI only — ако имаш delete API endpoint)
+  // delete package
   el("packagesTable").addEventListener("click", async (e) => {
     const btn = e.target.closest("button");
     if (!btn) return;
@@ -316,13 +297,8 @@
     }
   });
 
-  // Export button
   el("exportBtn").onclick = () => {
-    try {
-      exportToExcel();
-    } catch (e) {
-      alert(e.message);
-    }
+    try { exportToExcel(); } catch (e) { alert(e.message); }
   };
 
   refresh();
