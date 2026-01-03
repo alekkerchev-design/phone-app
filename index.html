@@ -100,7 +100,6 @@
 <script>
 (() => {
   const SCRIPT_URL = "/.netlify/functions/api";
-  const API_KEY = "CHANGE_ME_LONG_RANDOM_STRING";
 
   let state = { patients: [], packages: [], consultations: [] };
   let busy = false;
@@ -110,16 +109,16 @@
     document.body.classList.toggle("busy", v);
   }
 
-  async function api(action, payload = {}) {
-    const res = await fetch(SCRIPT_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ apiKey: API_KEY, action, payload })
-    });
-    const json = await res.json();
-    if (!json.ok) throw new Error(json.error);
-    return json.data;
-  }
+async function api(action, payload = {}) {
+  const res = await fetch(SCRIPT_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action, payload })
+  });
+  const json = await res.json();
+  if (!json.ok) throw new Error(json.error || "API error");
+  return json.data;
+}
 
   function today() {
     return new Date().toISOString().slice(0,10);
