@@ -3,22 +3,23 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Телефонни консултации (Google Sheet)</title>
+  <title>Телефонни консултации</title>
+
   <style>
     body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 20px; line-height: 1.35; }
     h1 { margin: 0 0 12px; }
     .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
     .card { border: 1px solid #ddd; border-radius: 10px; padding: 14px; }
     label { display:block; font-size: 13px; margin: 10px 0 6px; }
-    input, select, button, textarea { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 8px; font-size: 14px; }
+    input, select, button { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 8px; font-size: 14px; }
     button { cursor: pointer; }
     button.primary { border: 0; background: #111; color: #fff; }
-    button.danger { border: 0; background: #b00020; color: #fff; }
     button.secondary { background: #f3f3f3; }
+    button.danger { border: 0; background: #b00020; color: #fff; }
     .row { display:flex; gap: 10px; }
     .row > * { flex: 1; }
     table { width: 100%; border-collapse: collapse; }
-    th, td { border-bottom: 1px solid #eee; padding: 10px 8px; text-align: left; vertical-align: top; }
+    th, td { border-bottom: 1px solid #eee; padding: 10px 8px; text-align: left; }
     th { font-size: 12px; color: #444; }
     .pill { display:inline-block; padding: 3px 8px; border-radius: 999px; font-size: 12px; border: 1px solid #ddd; }
     .pill.ok { background: #f5fff5; border-color: #bfe6bf; }
@@ -28,722 +29,186 @@
     .msg { margin-top: 10px; padding: 10px; border-radius: 8px; border: 1px solid #ddd; background: #fafafa; }
     .msg.warn { border-color: #f0d9a6; background: #fffaf0; }
     .msg.err { border-color: #f0b6b6; background: #fff5f5; }
-    .controls { display:flex; gap: 10px; align-items:center; flex-wrap: wrap; }
-    .controls input { flex: 1; min-width: 180px; }
-    .small { font-size: 12px; }
     .right { text-align:right; }
-    details summary { cursor: pointer; }
-    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
     .busy { opacity: 0.6; pointer-events: none; }
   </style>
 </head>
+
 <body>
-  <h1>Телефонни консултации (Google Sheet)</h1>
-  <p class="muted">
-    Данните се пазят в Google Sheet чрез Google Apps Script Web App.
-  </p>
+  <h1>Телефонни консултации</h1>
+  <p class="muted">Данните се пазят в Google Sheet чрез Netlify proxy.</p>
 
   <div class="grid">
-    <!-- Add patient -->
     <div class="card">
-      <h2 style="margin:0 0 6px;">Нов пациент</h2>
-      <div class="muted">Добавя човек (не пакет). Пакет се добавя отделно.</div>
+      <h2>Нов пациент</h2>
 
       <label>Първо име</label>
-      <input id="firstName" placeholder="напр. Иван" />
+      <input id="firstName">
 
       <label>Фамилия</label>
-      <input id="lastName" placeholder="напр. Петров" />
+      <input id="lastName">
 
-      <div class="row" style="margin-top: 12px;">
-        <button class="primary" id="addPatientBtn">Добави пациент</button>
-        <button class="secondary" id="refreshBtn" title="Презарежда от Google Sheet">Обнови</button>
-      </div>
-
+      <button class="primary" id="addPatientBtn">Добави пациент</button>
       <div id="patientMsg" class="msg" style="display:none;"></div>
 
-      <hr style="border:none; border-top:1px solid #eee; margin: 14px 0;">
+      <hr>
 
-      <h3 style="margin:0 0 6px;">Нов пакет за пациент</h3>
-      <div class="muted">Избери пациент и дата на покупка. Това създава нов пакет (история).</div>
+      <h3>Нов пакет</h3>
 
       <label>Пациент</label>
-      <select id="patientForPackageSelect"></select>
+      <select id="patientForPackage"></select>
 
       <label>Дата на покупка</label>
-      <input id="packagePurchaseDate" type="date" />
+      <input type="date" id="packageDate">
 
-      <label>Брой консултации в пакета</label>
-      <input id="packageSize" type="number" min="1" max="50" value="5" />
+      <label>Брой консултации</label>
+      <input type="number" id="packageSize" value="5" min="1">
 
-      <button class="primary" id="addPackageBtn" style="margin-top:12px;">Добави пакет</button>
+      <button class="primary" id="addPackageBtn">Добави пакет</button>
       <div id="packageMsg" class="msg" style="display:none;"></div>
     </div>
 
-    <!-- Add consultation -->
     <div class="card">
-      <h2 style="margin:0 0 6px;">Нова консултация</h2>
-      <div class="muted">
-        Избираш пациент + дата. Консултацията се записва към <b>последния активен пакет</b>.
-        Ако няма активен пакет, приложението ще те насочи да добавиш нов пакет.
-      </div>
+      <h2>Нова консултация</h2>
 
       <label>Пациент</label>
-      <select id="patientSelect"></select>
+      <select id="patientForConsult"></select>
 
-      <label>Дата на консултация</label>
-      <input id="consultDate" type="date" />
+      <label>Дата</label>
+      <input type="date" id="consultDate">
 
-      <div class="row" style="margin-top: 12px;">
-        <button class="primary" id="addConsultBtn">Добави консултация</button>
-        <button class="secondary" id="todayBtn">Днес</button>
-      </div>
-
+      <button class="primary" id="addConsultBtn">Добави консултация</button>
       <div id="consultMsg" class="msg" style="display:none;"></div>
     </div>
   </div>
 
-  <div class="card" style="margin-top: 16px;">
-    <div class="controls">
-      <input id="search" placeholder="Търсене по име..." />
-      <label class="small" style="display:flex; align-items:center; gap:8px; margin:0;">
-        <input id="showArchivedPatients" type="checkbox" style="width:auto; margin:0;"> Показвай архивирани пациенти
-      </label>
-      <label class="small" style="display:flex; align-items:center; gap:8px; margin:0;">
-        <input id="showArchivedPackages" type="checkbox" style="width:auto; margin:0;"> Показвай архивирани пакети
-      </label>
-
-      <button class="secondary" id="exportBtn" style="width:auto;">Export JSON</button>
-      <button class="secondary" id="importBtn" style="width:auto;">Import JSON</button>
-    </div>
-
-    <details style="margin-top: 10px;">
-      <summary class="small">Import/Export (JSON)</summary>
-      <textarea id="jsonArea" rows="7" class="mono" placeholder="Export попълва. За Import постави JSON тук."></textarea>
-      <div class="row" style="margin-top: 10px;">
-        <button class="secondary" id="copyJsonBtn">Копирай JSON</button>
-        <button class="secondary" id="loadJsonBtn">Зареди JSON</button>
-      </div>
-      <div class="muted small" style="margin-top:8px;">
-        Import презаписва данните в Sheet-а (изисква потвърждение).
-      </div>
-    </details>
-
-    <h2 style="margin: 14px 0 8px;">Отчет по пакети</h2>
-    <div class="muted" id="statsLine"></div>
-
-    <div style="overflow:auto; margin-top: 8px;">
-      <table>
-        <thead>
-          <tr>
-            <th>Пациент</th>
-            <th>Пакет (покупка)</th>
-            <th>Проведени / Остават</th>
-            <th>Съобщение</th>
-            <th class="right">Действия</th>
-          </tr>
-        </thead>
-        <tbody id="packagesTable"></tbody>
-      </table>
-    </div>
-  </div>
-
   <div class="card" style="margin-top:16px;">
-    <h2 style="margin:0 0 8px;">История (консултации)</h2>
-    <div class="muted">Последни 40 записа.</div>
-    <div style="overflow:auto; margin-top: 8px;">
-      <table>
-        <thead>
-          <tr>
-            <th>Дата</th>
-            <th>Пациент</th>
-            <th>Пакет (покупка)</th>
-            <th class="right">Действия</th>
-          </tr>
-        </thead>
-        <tbody id="consultationsTable"></tbody>
-      </table>
-    </div>
+    <h2>Отчет по пакети</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Пациент</th>
+          <th>Пакет</th>
+          <th>Проведени / Остават</th>
+          <th class="right">Действия</th>
+        </tr>
+      </thead>
+      <tbody id="packagesTable"></tbody>
+    </table>
   </div>
 
 <script>
 (() => {
-  // ✅ Постави тук URL-а от Apps Script Deploy → Web app
-  const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxVlB4-jJXNdyWH2WksQRU_aMfnMzHJ_BoqJHZJe_EVxs4YXm7gye-B7PXIJ_mPp0z7HQ/exec";
+  const SCRIPT_URL = "/.netlify/functions/api";
+  const API_KEY = "CHANGE_ME_LONG_RANDOM_STRING";
 
   let state = { patients: [], packages: [], consultations: [] };
-  let busyCount = 0;
+  let busy = false;
+
+  function setBusy(v) {
+    busy = v;
+    document.body.classList.toggle("busy", v);
+  }
 
   async function api(action, payload = {}) {
     const res = await fetch(SCRIPT_URL, {
       method: "POST",
-      headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify({ action, payload })
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ apiKey: API_KEY, action, payload })
     });
     const json = await res.json();
-    if (!json.ok) throw new Error(json.error || "API error");
+    if (!json.ok) throw new Error(json.error);
     return json.data;
   }
 
-  function setBusy(on) {
-    busyCount += on ? 1 : -1;
-    busyCount = Math.max(0, busyCount);
-    document.body.classList.toggle("busy", busyCount > 0);
+  function today() {
+    return new Date().toISOString().slice(0,10);
   }
 
-  async function refreshState() {
+  const el = id => document.getElementById(id);
+
+  async function refresh() {
     setBusy(true);
     try {
-      state = await api("getState", {});
+      state = await api("getState");
       render();
-    } finally {
-      setBusy(false);
+    } catch (e) {
+      alert(e.message);
     }
+    setBusy(false);
   }
 
-  function todayISO() {
-    const d = new Date();
-    const pad = (n) => String(n).padStart(2,"0");
-    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
-  }
-
-  function norm(s) { return (s || "").trim(); }
-  function fullName(p) { return `${p.firstName} ${p.lastName}`.trim(); }
-
-  function escapeHtml(s) {
-    return String(s ?? "")
-      .replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;")
-      .replaceAll('"',"&quot;").replaceAll("'","&#039;");
-  }
-
-  function showMsg(el, text, kind="") {
-    el.style.display = "block";
-    el.textContent = text;
-    el.className = "msg" + (kind ? " " + kind : "");
-  }
-
-  function hideMsg(el) {
-    el.style.display = "none";
-    el.textContent = "";
-    el.className = "msg";
-  }
-
-  function patientById(id) { return state.patients.find(p => p.patientId === id); }
-  function packageById(id) { return state.packages.find(p => p.packageId === id); }
-
-  function consultationsForPackage(packageId) {
-    return state.consultations.filter(c => c.packageId === packageId);
-  }
-
-  function doneForPackage(packageId) {
-    return consultationsForPackage(packageId).length;
-  }
-
-  function remainingForPackage(packageId) {
-    const pkg = packageById(packageId);
-    if (!pkg) return 0;
-    return Math.max(0, Number(pkg.size || 5) - doneForPackage(packageId));
-  }
-
-  function lastActivePackageForPatient(patientId) {
-    const pkgs = state.packages
-      .filter(pkg => pkg.patientId === patientId && !pkg.archived)
-      .slice()
-      .sort((a,b) => (b.purchaseDate || "").localeCompare(a.purchaseDate || ""));
-    for (const pkg of pkgs) {
-      if (remainingForPackage(pkg.packageId) > 0) return pkg;
-    }
-    return null;
-  }
-
-  function packagePillByLeft(left) {
-    if (left === 0) return `<span class="pill done">0 оставащи</span>`;
-    if (left <= 2) return `<span class="pill warn">Остават ${left}</span>`;
-    return `<span class="pill ok">Остават ${left}</span>`;
-  }
-
-  // ----- DOM -----
-  const firstNameEl = document.getElementById("firstName");
-  const lastNameEl = document.getElementById("lastName");
-  const addPatientBtn = document.getElementById("addPatientBtn");
-  const refreshBtn = document.getElementById("refreshBtn");
-  const patientMsgEl = document.getElementById("patientMsg");
-
-  const patientForPackageSelectEl = document.getElementById("patientForPackageSelect");
-  const packagePurchaseDateEl = document.getElementById("packagePurchaseDate");
-  const packageSizeEl = document.getElementById("packageSize");
-  const addPackageBtn = document.getElementById("addPackageBtn");
-  const packageMsgEl = document.getElementById("packageMsg");
-
-  const patientSelectEl = document.getElementById("patientSelect");
-  const consultDateEl = document.getElementById("consultDate");
-  const addConsultBtn = document.getElementById("addConsultBtn");
-  const todayBtn = document.getElementById("todayBtn");
-  const consultMsgEl = document.getElementById("consultMsg");
-
-  const searchEl = document.getElementById("search");
-  const showArchivedPatientsEl = document.getElementById("showArchivedPatients");
-  const showArchivedPackagesEl = document.getElementById("showArchivedPackages");
-
-  const packagesTableEl = document.getElementById("packagesTable");
-  const consultationsTableEl = document.getElementById("consultationsTable");
-  const statsLineEl = document.getElementById("statsLine");
-
-  const exportBtn = document.getElementById("exportBtn");
-  const importBtn = document.getElementById("importBtn");
-  const jsonArea = document.getElementById("jsonArea");
-  const copyJsonBtn = document.getElementById("copyJsonBtn");
-  const loadJsonBtn = document.getElementById("loadJsonBtn");
-
-  packagePurchaseDateEl.value = todayISO();
-  consultDateEl.value = todayISO();
-
-  // ----- Render -----
   function render() {
-    renderPatientSelects();
-    renderPackagesTable();
-    renderConsultationsTable();
-    renderStats();
-  }
-
-  function renderPatientSelects() {
-    const showArchivedPatients = showArchivedPatientsEl.checked;
-
-    const patients = state.patients
-      .filter(p => showArchivedPatients || !p.archived)
-      .slice()
-      .sort((a,b) => fullName(a).localeCompare(fullName(b), "bg"));
-
-    renderPatientSelect(patientSelectEl, patients);
-    renderPatientSelect(patientForPackageSelectEl, patients);
-  }
-
-  function renderPatientSelect(selectEl, patients) {
-    const current = selectEl.value;
-    selectEl.innerHTML = "";
-
-    if (patients.length === 0) {
-      const opt = document.createElement("option");
-      opt.value = "";
-      opt.textContent = "Няма пациенти (добави отляво)";
-      selectEl.appendChild(opt);
-      selectEl.disabled = true;
-      return;
-    }
-    selectEl.disabled = false;
-
-    for (const p of patients) {
-      const activePkg = lastActivePackageForPatient(p.patientId);
-      const label = activePkg
-        ? `активен пакет: ${doneForPackage(activePkg.packageId)}/${activePkg.size}`
-        : `няма активен пакет`;
-      const opt = document.createElement("option");
-      opt.value = p.patientId;
-      opt.textContent = `${fullName(p)} — ${label}${p.archived ? " [архив]" : ""}`;
-      selectEl.appendChild(opt);
-    }
-
-    if (current && patients.some(p => p.patientId === current)) selectEl.value = current;
-  }
-
-  function renderPackagesTable() {
-    const q = norm(searchEl.value).toLowerCase();
-    const showArchivedPatients = showArchivedPatientsEl.checked;
-    const showArchivedPackages = showArchivedPackagesEl.checked;
-
-    const rows = state.packages
-      .filter(pkg => showArchivedPackages || !pkg.archived)
-      .map(pkg => ({ pkg, p: patientById(pkg.patientId) }))
-      .filter(({p}) => !!p)
-      .filter(({p}) => showArchivedPatients || !p.archived)
-      .filter(({p}) => !q || fullName(p).toLowerCase().includes(q))
-      .slice()
-      .sort((a,b) => {
-        if (a.pkg.archived !== b.pkg.archived) return a.pkg.archived ? 1 : -1;
-        return (b.pkg.purchaseDate || "").localeCompare(a.pkg.purchaseDate || "");
+    const selects = [el("patientForPackage"), el("patientForConsult")];
+    selects.forEach(s => {
+      s.innerHTML = "";
+      state.patients.forEach(p => {
+        if (p.archived) return;
+        const o = document.createElement("option");
+        o.value = p.patientId;
+        o.textContent = p.firstName + " " + p.lastName;
+        s.appendChild(o);
       });
+    });
 
-    packagesTableEl.innerHTML = "";
+    const tbody = el("packagesTable");
+    tbody.innerHTML = "";
 
-    for (const {pkg, p} of rows) {
-      const done = doneForPackage(pkg.packageId);
-      const left = remainingForPackage(pkg.packageId);
-
-      const quickNewPkgBtnHtml = (left > 0)
-        ? `
-          <button class="secondary" disabled
-            title="Ще се отключи автоматично при 0 оставащи консултации"
-            style="width:auto; opacity:0.5; cursor:not-allowed;">
-            Нов пакет (бързо)
-          </button>
-        `
-        : `
-          <button class="primary" data-action="quickNewPkg" data-id="${pkg.packageId}" style="width:auto;">
-            Нов пакет (бързо)
-          </button>
-        `;
+    state.packages.forEach(pkg => {
+      const p = state.patients.find(x => x.patientId === pkg.patientId);
+      const used = state.consultations.filter(c => c.packageId === pkg.packageId).length;
+      const left = pkg.size - used;
 
       const tr = document.createElement("tr");
       tr.innerHTML = `
-        <td>
-          <div><b>${escapeHtml(fullName(p))}</b> ${p.archived ? `<span class="pill">Пациент архив</span>` : ""}</div>
-          <div class="muted small mono">${escapeHtml(p.patientId)}</div>
-        </td>
-
-        <td>
-          <div><b>${escapeHtml(pkg.purchaseDate || "—")}</b> ${pkg.archived ? `<span class="pill">Пакет архив</span>` : ""}</div>
-          <div class="muted small mono">${escapeHtml(pkg.packageId)}</div>
-          <div class="muted small">Размер: ${pkg.size}</div>
-        </td>
-
-        <td>
-          ${packagePillByLeft(left)}
-          ${left === 0 ? `<span class="pill done" style="margin-left:6px;">Изчерпан</span>` : ``}
-          <div class="muted small">${done} проведени / ${left} оставащи</div>
-        </td>
-
-        <td>
-          ${left === 0
-            ? `<div class="msg warn" style="margin:0;">
-                 Пакетът е изчерпан. Можеш да архивираш пакета (данните се пазят).
-                 <div class="muted small" style="margin-top:6px;">
-                   “Изтрий пакет” премахва пакета и всички негови консултации.
-                 </div>
-               </div>`
-            : `<span class="muted">—</span>`
-          }
-        </td>
-
+        <td>${p ? p.firstName + " " + p.lastName : "?"}</td>
+        <td>${pkg.purchaseDate}</td>
+        <td>${used} / ${left}</td>
         <td class="right">
-          <div style="display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap;">
-            ${quickNewPkgBtnHtml}
-
-            <button class="secondary" data-action="pkgDetails" data-id="${pkg.packageId}" style="width:auto;">Детайли</button>
-
-            <button class="secondary" data-action="togglePkgArchive" data-id="${pkg.packageId}" style="width:auto;">
-              ${pkg.archived ? "Разархивирай пакет" : "Архивирай пакет"}
-            </button>
-
-            <button class="secondary" data-action="togglePatientArchive" data-id="${p.patientId}" style="width:auto;">
-              ${p.archived ? "Разархивирай пациент" : "Архивирай пациент"}
-            </button>
-
-            <button class="danger" data-action="deletePkg" data-id="${pkg.packageId}" style="width:auto;">Изтрий пакет</button>
-          </div>
+          <button class="danger" data-id="${pkg.packageId}">Изтрий</button>
         </td>
       `;
-      packagesTableEl.appendChild(tr);
-    }
-
-    if (rows.length === 0) {
-      const tr = document.createElement("tr");
-      tr.innerHTML = `<td colspan="5" class="muted">Няма резултати.</td>`;
-      packagesTableEl.appendChild(tr);
-    }
+      tbody.appendChild(tr);
+    });
   }
 
-  function renderConsultationsTable() {
-    const latest = state.consultations
-      .slice()
-      .sort((a,b) => (b.date || "").localeCompare(a.date || ""))
-      .slice(0, 40);
+  el("packageDate").value = today();
+  el("consultDate").value = today();
 
-    consultationsTableEl.innerHTML = "";
-
-    for (const c of latest) {
-      const p = patientById(c.patientId);
-      const pkg = packageById(c.packageId);
-      const name = p ? fullName(p) : "(липсващ пациент)";
-      const pkgDate = pkg ? pkg.purchaseDate : "(липсващ пакет)";
-
-      const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td>${escapeHtml(c.date || "—")}</td>
-        <td>${escapeHtml(name)}</td>
-        <td>${escapeHtml(pkgDate || "—")}</td>
-        <td class="right">
-          <button class="danger" data-action="deleteConsult" data-id="${c.consultationId}" style="width:auto;">Изтрий</button>
-        </td>
-      `;
-      consultationsTableEl.appendChild(tr);
-    }
-
-    if (latest.length === 0) {
-      const tr = document.createElement("tr");
-      tr.innerHTML = `<td colspan="4" class="muted">Няма добавени консултации.</td>`;
-      consultationsTableEl.appendChild(tr);
-    }
-  }
-
-  function renderStats() {
-    const activePatients = state.patients.filter(p => !p.archived).length;
-    const archivedPatients = state.patients.filter(p => p.archived).length;
-
-    const activePkgs = state.packages.filter(p => !p.archived).length;
-    const archivedPkgs = state.packages.filter(p => p.archived).length;
-
-    const exhaustedActivePkgs = state.packages.filter(pkg => !pkg.archived && remainingForPackage(pkg.packageId) === 0).length;
-
-    statsLineEl.textContent =
-      `Пациенти: ${activePatients} активни / ${archivedPatients} архив | ` +
-      `Пакети: ${activePkgs} активни / ${archivedPkgs} архив | ` +
-      `Активни изчерпани пакети: ${exhaustedActivePkgs} | ` +
-      `Общо консултации: ${state.consultations.length}`;
-  }
-
-  // ----- Events -----
-  refreshBtn.addEventListener("click", () => refreshState());
-
-  addPatientBtn.addEventListener("click", async () => {
-    hideMsg(patientMsgEl);
-    const firstName = norm(firstNameEl.value);
-    const lastName = norm(lastNameEl.value);
-    if (!firstName || !lastName) return showMsg(patientMsgEl, "Моля, въведи две имена.", "err");
-
-    setBusy(true);
+  el("addPatientBtn").onclick = async () => {
     try {
-      await api("addPatient", { firstName, lastName });
-      firstNameEl.value = "";
-      lastNameEl.value = "";
-      showMsg(patientMsgEl, "Пациентът е добавен.", "");
-      await refreshState();
-    } catch (e) {
-      showMsg(patientMsgEl, e.message || String(e), "err");
-    } finally {
-      setBusy(false);
-    }
-  });
+      await api("addPatient", {
+        firstName: el("firstName").value,
+        lastName: el("lastName").value
+      });
+      el("firstName").value = "";
+      el("lastName").value = "";
+      refresh();
+    } catch (e) { alert(e.message); }
+  };
 
-  addPackageBtn.addEventListener("click", async () => {
-    hideMsg(packageMsgEl);
-
-    const patientId = patientForPackageSelectEl.value;
-    const purchaseDate = packagePurchaseDateEl.value;
-    const size = Number(packageSizeEl.value || 5);
-
-    if (!patientId) return showMsg(packageMsgEl, "Няма избран пациент.", "err");
-    if (!purchaseDate) return showMsg(packageMsgEl, "Избери дата на покупка.", "err");
-    if (!Number.isFinite(size) || size < 1) return showMsg(packageMsgEl, "Невалиден брой консултации.", "err");
-
-    setBusy(true);
+  el("addPackageBtn").onclick = async () => {
     try {
-      await api("addPackage", { patientId, purchaseDate, size });
-      packagePurchaseDateEl.value = todayISO();
-      packageSizeEl.value = "5";
-      showMsg(packageMsgEl, "Пакетът е добавен.", "");
-      await refreshState();
-    } catch (e) {
-      showMsg(packageMsgEl, e.message || String(e), "err");
-    } finally {
-      setBusy(false);
-    }
-  });
+      await api("addPackage", {
+        patientId: el("patientForPackage").value,
+        purchaseDate: el("packageDate").value,
+        size: Number(el("packageSize").value)
+      });
+      refresh();
+    } catch (e) { alert(e.message); }
+  };
 
-  todayBtn.addEventListener("click", () => {
-    consultDateEl.value = todayISO();
-  });
-
-  addConsultBtn.addEventListener("click", async () => {
-    hideMsg(consultMsgEl);
-
-    const patientId = patientSelectEl.value;
-    const date = consultDateEl.value;
-
-    if (!patientId) return showMsg(consultMsgEl, "Няма избран пациент.", "err");
-    if (!date) return showMsg(consultMsgEl, "Избери дата на консултация.", "err");
-
-    setBusy(true);
+  el("addConsultBtn").onclick = async () => {
     try {
-      const r = await api("addConsultation", { patientId, date });
-      await refreshState();
-      if (r.remaining === 0) {
-        showMsg(consultMsgEl, "Добавено. Пакетът е изчерпан — бутонът „Нов пакет (бързо)“ е отключен.", "warn");
-      } else {
-        showMsg(consultMsgEl, `Добавено. Остават ${r.remaining} консултации в активния пакет.`, "");
-      }
-    } catch (e) {
-      showMsg(consultMsgEl, e.message || String(e), "err");
-    } finally {
-      setBusy(false);
-    }
-  });
+      await api("addConsultation", {
+        patientId: el("patientForConsult").value,
+        date: el("consultDate").value
+      });
+      refresh();
+    } catch (e) { alert(e.message); }
+  };
 
-  // Delegated actions for packages table
-  packagesTableEl.addEventListener("click", async (e) => {
-    const btn = e.target.closest("button");
-    if (!btn) return;
-    const action = btn.dataset.action;
-    const id = btn.dataset.id;
-
-    try {
-      setBusy(true);
-
-      if (action === "quickNewPkg") {
-        // enforce exhausted in backend
-        await api("quickNewPackage", { oldPackageId: id });
-        await refreshState();
-        alert("Старият пакет е архивиран и е създаден нов пакет (днес).");
-        return;
-      }
-
-      if (action === "togglePkgArchive") {
-        await api("togglePackageArchive", { packageId: id });
-        await refreshState();
-        return;
-      }
-
-      if (action === "togglePatientArchive") {
-        await api("togglePatientArchive", { patientId: id });
-        await refreshState();
-        return;
-      }
-
-      if (action === "deletePkg") {
-        const pkg = packageById(id);
-        const p = pkg ? patientById(pkg.patientId) : null;
-        const who = p ? fullName(p) : "пациент";
-        const consultCount = consultationsForPackage(id).length;
-
-        const ok1 = confirm(
-          `ВНИМАНИЕ: Това ще ИЗТРИЕ пакета (${pkg ? pkg.purchaseDate : "?"}) за ${who}.\n` +
-          `Ще бъдат изтрити и ${consultCount} консултации в него.\n\n` +
-          `Продължавам?`
-        );
-        if (!ok1) return;
-
-        const typed = prompt('За окончателно изтриване, напиши: DELETE');
-        if (typed !== "DELETE") {
-          alert("Изтриването е отказано (не е въведено DELETE).");
-          return;
-        }
-
-        await api("deletePackage", { packageId: id });
-        await refreshState();
-        return;
-      }
-
-      if (action === "pkgDetails") {
-        const pkg = packageById(id);
-        if (!pkg) return alert("Пакетът не е намерен (обнови).");
-        const p = patientById(pkg.patientId);
-
-        const consults = consultationsForPackage(id).slice().sort((a,b)=> (a.date||"").localeCompare(b.date||""));
-        const done = consults.length;
-        const left = Math.max(0, Number(pkg.size || 5) - done);
-
-        alert(
-          `Пациент: ${p ? fullName(p) : "(липсващ)"}\n` +
-          `Пакет покупка: ${pkg.purchaseDate}\n` +
-          `Размер: ${pkg.size}\n` +
-          `Проведени: ${done}\n` +
-          `Оставащи: ${left}\n` +
-          `Архив (пакет): ${pkg.archived ? "Да" : "Не"}\n\n` +
-          `Дати:\n` + (consults.map(c => `- ${c.date}`).join("\n") || "(няма)")
-        );
-        return;
-      }
-
-    } catch (err) {
-      alert(err.message || String(err));
-    } finally {
-      setBusy(false);
-    }
-  });
-
-  // Delegated actions for consultations table
-  consultationsTableEl.addEventListener("click", async (e) => {
-    const btn = e.target.closest("button");
-    if (!btn) return;
-    const action = btn.dataset.action;
-    const id = btn.dataset.id;
-
-    if (action !== "deleteConsult") return;
-
-    const ok = confirm("Да изтрия тази консултация?");
-    if (!ok) return;
-
-    setBusy(true);
-    try {
-      await api("deleteConsultation", { consultationId: id });
-      await refreshState();
-    } catch (err) {
-      alert(err.message || String(err));
-    } finally {
-      setBusy(false);
-    }
-  });
-
-  searchEl.addEventListener("input", renderPackagesTable);
-  showArchivedPatientsEl.addEventListener("change", render);
-  showArchivedPackagesEl.addEventListener("change", render);
-
-  // Export/Import
-  exportBtn.addEventListener("click", () => {
-    jsonArea.value = JSON.stringify(state, null, 2);
-    jsonArea.focus();
-    jsonArea.select();
-  });
-
-  copyJsonBtn.addEventListener("click", async () => {
-    try {
-      await navigator.clipboard.writeText(jsonArea.value || "");
-      alert("JSON е копиран в clipboard.");
-    } catch {
-      alert("Не успях да копирам автоматично. Маркирай текста и копирай ръчно.");
-    }
-  });
-
-  importBtn.addEventListener("click", () => {
-    alert("Постави JSON в полето и натисни „Зареди JSON“. Това ще презапише данните в Sheet-а.");
-    jsonArea.focus();
-  });
-
-  loadJsonBtn.addEventListener("click", async () => {
-    const raw = jsonArea.value.trim();
-    if (!raw) return alert("Празен JSON.");
-
-    let parsed;
-    try {
-      parsed = JSON.parse(raw);
-    } catch (e) {
-      return alert("Невалиден JSON: " + (e.message || e));
-    }
-
-    if (!parsed || !Array.isArray(parsed.patients) || !Array.isArray(parsed.packages) || !Array.isArray(parsed.consultations)) {
-      return alert("Невалиден формат. Очаквам { patients: [...], packages: [...], consultations: [...] }");
-    }
-
-    const ok = confirm("Сигурен ли си? Import ще изтрие текущите данни в Sheet-а и ще ги замени с този JSON.");
-    if (!ok) return;
-
-    setBusy(true);
-    try {
-      await api("setState", parsed);
-      await refreshState();
-      alert("Import успешно завършен.");
-    } catch (e) {
-      alert(e.message || String(e));
-    } finally {
-      setBusy(false);
-    }
-  });
-
-  // Initial load
-  (async () => {
-    try {
-      await refreshState();
-    } catch (e) {
-      alert(
-        "Не мога да заредя данни от Apps Script.\n\n" +
-        "Провери:\n" +
-        "1) SCRIPT_URL в кода\n" +
-        "2) Deploy като Web app\n" +
-        "3) Достъп до Sheet-а (Share към твоя акаунт/екипа)\n\n" +
-        "Грешка: " + (e.message || String(e))
-      );
-      console.error(e);
-    }
-  })();
+  refresh();
 })();
 </script>
 </body>
