@@ -191,7 +191,6 @@
     .btn.danger:hover{ border-color: rgba(239,68,68,.68); }
     .btn.small{ padding: 8px 10px; font-size: 12px; border-radius: 11px; }
     .btn.inline{ width:auto; }
-
     .btn[disabled]{ opacity:.5; cursor:not-allowed; }
 
     /* Metrics */
@@ -384,7 +383,7 @@
       </div>
 
       <div class="top-actions">
-        <div class="chip" id="connChip"><span class="dot" id="connDot"></span><span id="connText">Свързан</span></div>
+        <div class="chip"><span class="dot" id="connDot"></span><span id="connText">Свързан</span></div>
         <button class="btn secondary inline" id="exportBtnTop">Експорт</button>
       </div>
     </div>
@@ -422,13 +421,9 @@
         </div>
         <div class="card-body">
           <div class="form-grid">
-            <div>
-              <label>Първо име</label>
-              <input id="firstName" placeholder="напр. Иван" />
-            </div>
-            <div>
-              <label>Фамилия</label>
-              <input id="lastName" placeholder="напр. Петров" />
+            <div style="grid-column:1 / -1;">
+              <label>Име и фамилия</label>
+              <input id="fullName" placeholder="напр. Иван Петров" />
             </div>
           </div>
           <div style="margin-top:12px;" class="btn-row">
@@ -725,7 +720,6 @@
       .filter(x => x.p)
       .filter(({p}) => !q || (`${p.firstName} ${p.lastName}`.toLowerCase().includes(q)));
 
-    // filter by status
     if (filter !== "all") {
       rows = rows.filter(({pkg}) => {
         const { left } = computePackageStats(pkg.packageId, pkg.size);
@@ -733,7 +727,6 @@
       });
     }
 
-    // sorting
     rows.sort((a,b) => {
       const aName = `${a.p.firstName} ${a.p.lastName}`;
       const bName = `${b.p.firstName} ${b.p.lastName}`;
@@ -744,7 +737,6 @@
       if (sortBy === "date_desc") return String(b.pkg.purchaseDate).localeCompare(String(a.pkg.purchaseDate));
       if (sortBy === "patient_asc") return aName.localeCompare(bName, "bg");
       if (sortBy === "status") {
-        // Активен първо
         const aVal = aStats.left > 0 ? 0 : 1;
         const bVal = bStats.left > 0 ? 0 : 1;
         if (aVal !== bVal) return aVal - bVal;
@@ -782,11 +774,11 @@
 
       const tr = document.createElement("tr");
       tr.innerHTML = `
-       <td>
-  <div style="display:flex;flex-direction:column;gap:4px;">
-    <div style="font-weight:600;">${escapeHtml(p.firstName + " " + p.lastName)}</div>
-  </div>
-</td>
+        <td>
+          <div style="display:flex;flex-direction:column;gap:4px;">
+            <div style="font-weight:600;">${escapeHtml(p.firstName + " " + p.lastName)}</div>
+          </div>
+        </td>
         <td>${escapeHtml(formatDate(pkg.purchaseDate))}</td>
         <td>${statusBadge}</td>
         <td>
@@ -818,7 +810,6 @@
       renderSelects();
       renderMetrics();
       renderTable();
-      // ако модалът е отворен, обнови го със свежи данни
       if (modalPkgId) openDetails(modalPkgId, true);
     } catch (e) {
       setConn(false, "Грешка");
@@ -827,7 +818,6 @@
     setBusy(false);
   }
 
-  // Excel export: 1 ред = 1 пакет + списък с дати + Статус
   function exportToExcel() {
     if (!window.XLSX) {
       toast("err", "Липсва XLSX библиотека", "Провери интернет връзката/скрипта.");
@@ -899,7 +889,6 @@
 
     const patientName = getPatientName(pkg.patientId);
     const { used, left } = computePackageStats(pkg.packageId, pkg.size);
-    const status = left > 0 ? "Активен" : "Изчерпан";
 
     el("modalTitle").textContent = "Детайли за пакет";
     el("modalSub").textContent = `${patientName} • покупка: ${formatDate(pkg.purchaseDate)}`;
@@ -914,7 +903,6 @@
       : `<span class="badge warn"><span class="b"></span>Изчерпан</span>`;
     el("dPkgId").textContent = pkg.packageId;
 
-    // list of consult dates
     const list = el("dList");
     list.innerHTML = "";
     const consults = state.consultations
@@ -928,12 +916,11 @@
       for (const c of consults) {
         const div = document.createElement("div");
         div.className = "item";
-        div.innerHTML = `<span>${escapeHtml(formatDate(c.date))}</span><span class="mono" style="color:var(--muted); font-size:12px;">${escapeHtml(c.consultationId || "")}</span>`;
+        div.innerHTML = `<span>${escapeHtml(formatDate(c.date))}</span>`;
         list.appendChild(div);
       }
     }
 
-    // quick new enabled only if exhausted
     const quickBtn = el("dQuickNewBtn");
     quickBtn.disabled = left > 0;
     quickBtn.title = left > 0 ? "Отключва се при Изчерпан" : "Добавя нов пакет (днес) със същия размер";
@@ -945,7 +932,6 @@
     showModal(false);
   }
 
-  // Actions
   async function deletePackage(packageId) {
     const ok = confirm("Сигурен ли си, че искаш да изтриеш този пакет? Това ще изтрие и консултациите към него.");
     if (!ok) return;
@@ -998,8 +984,12 @@
   });
 
   el("clearPatientBtn").addEventListener("click", () => {
-    el("firstName").value = "";
-    el("lastName").value = "";
+    el("fullName").value = "";
+  });
+
+  // Enter adds patient
+  el("fullName").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") el("addPatientBtn").click();
   });
 
   el("search").addEventListener("input", renderTable);
@@ -1011,15 +1001,19 @@
   el("modalExportBtn").addEventListener("click", exportToExcel);
 
   el("addPatientBtn").addEventListener("click", async () => {
-    const firstName = (el("firstName").value || "").trim();
-    const lastName = (el("lastName").value || "").trim();
-    if (!firstName || !lastName) return toast("warn","Липсва име","Попълни две имена.");
+    const full = (el("fullName").value || "").trim().replace(/\s+/g, " ");
+    if (!full) return toast("warn","Липсва име","Въведи име и фамилия.");
+
+    const parts = full.split(" ");
+    if (parts.length < 2) return toast("warn","Непълно име","Въведи поне две думи (име и фамилия).");
+
+    const firstName = parts[0];
+    const lastName = parts.slice(1).join(" ");
 
     setBusy(true);
     try {
       await api("addPatient", { firstName, lastName });
-      el("firstName").value = "";
-      el("lastName").value = "";
+      el("fullName").value = "";
       toast("ok","Пациент добавен", `${firstName} ${lastName}`);
       await refresh();
     } catch (e) {
@@ -1107,4 +1101,3 @@
 </script>
 </body>
 </html>
-
